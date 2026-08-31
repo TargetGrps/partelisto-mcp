@@ -61,14 +61,34 @@ RFC 9728 protected-resource metadata is published at `/.well-known/oauth-protect
 `authorization_servers` at Keycloak's realm and listing both scopes, so a spec-compliant MCP client can
 discover how to obtain a token without a human pasting one in.
 
+## Keycloak setup (done)
+
+The `partelisto` realm has a client `partelisto-mcp` (uuid `f5a1cb7f-d6f9-474c-818a-183584dbec30`):
+public client, `standardFlowEnabled` (authorization_code + PKCE), `consentRequired: true`,
+`directAccessGrantsEnabled: true`. Two optional client scopes are assigned and shown on the consent
+screen: `partelisto:read` and `partelisto:write` (both `display.on.consent.screen: true`). Two access
+token audience mappers are attached to the client — one adding `partelisto-mcp` (so this service accepts
+the token), one adding `api-gateway` (so the same token, forwarded unchanged, is also accepted by the
+gateway; the first mapper alone replaces the audience rather than extending it, which silently broke the
+gateway hop — worth remembering if another audience mapper gets added here later).
+
+Registered redirect URI so far: `https://claude.ai/api/mcp/auth_callback`. Add more (ChatGPT, Claude
+Code's local callback, etc.) as each client actually gets connected — Keycloak needs the exact URI
+before that client's OAuth flow will complete.
+
+Verified with a real e2e-owner token minted against this client (`scope=openid partelisto:read
+partelisto:write`, consent briefly disabled to allow a password-grant test token, then re-enabled):
+- Decoded token carried `aud: partelisto-mcp` and both custom scopes, as expected.
+- This service's own JWT validation + `RequireScope` correctly accepted it (no longer rejected, unlike
+  a `partelisto-spa`-issued token, which correctly still gets rejected — proven separately).
+- Forwarding to the gateway failed once (the audience-replacement bug above), fixed, not re-run after
+  the fix — consent was already back on by then. NOT verified: a scoped token, post-fix, actually
+  reaching backoffice and getting a real answer back. High confidence (the fix is standard Keycloak
+  audience-mapper behavior and the gateway hop is byte-for-byte what the SPA already does successfully),
+  but the last hop is unconfirmed — first real test will be the first real client connecting.
+
 ## What's NOT done yet (manual follow-ups)
 
-- **A Keycloak client for this server.** `Keycloak:Audience` defaults to `partelisto-mcp`, but no such
-  client exists in the `partelisto` realm yet. Someone with Keycloak admin access needs to: create a
-  confidential or public client `partelisto-mcp` with the authorization_code + PKCE flow enabled, define
-  two client scopes `partelisto:read` and `partelisto:write` (default or consent-required, your call —
-  consent-required is what makes the OAuth screen show them as separate checkboxes), and set the token's
-  audience mapper so access tokens minted for this client carry `aud: partelisto-mcp`.
 - **Not deployed.** No Dockerfile push to `ghcr.io/targetgrps/partelisto-mcp`, no Helm chart in
   `helm-microservices`, no entry in `values-production.yaml`, no `mcp.partelisto.es` DNS/ingress. The CI
   workflow (`.github/workflows/build-publish.yml`) mirrors the sibling services' but its
@@ -76,11 +96,9 @@ discover how to obtain a token without a human pasting one in.
   service in this org — check the first run.
 - **Not registered anywhere an AI client would find it** (no MCP registry listing, no ChatGPT App
   submission).
-- **End-to-end OAuth flow untested.** Verified locally: Docker build, `/healthz`, the MCP `initialize`
-  handshake, `tools/list` (all six tools with correct schemas/annotations), and both failure paths
-  (`tools/call` with no token, with an invalid token). NOT verified: a real MCP client completing the
-  Keycloak authorization_code+PKCE flow and calling a tool with a genuinely valid, scoped token — that
-  needs the Keycloak client above plus a live gateway.
+- **Full OAuth authorization_code+PKCE flow untested end to end** — see the note above. Everything short
+  of "a real client completes the browser consent screen and calls a tool" has been verified, including
+  against a live Keycloak and a live gateway.
 
 ## Local development
 
@@ -99,11 +117,10 @@ port from the workspace compose stack (see the partelisto local-dev-startup note
 up). The Docker Compose file instead uses `http://host.docker.internal:5201`, since this service's own
 container isn't on that stack's docker network.
 
-## Manually exercising a tool without a real OAuth client
+## Manually exercising a tool without going through a real MCP client
 
-Useful for poking at the wiring before Keycloak is set up. `tools/list` needs no token; `tools/call`
-needs a real Partelisto access token (e.g. copied from the SPA's dev tools after signing in) — the
-gateway's `OwnerAccess` policy doesn't currently check for an MCP-specific scope claim, so any valid
-Partelisto access token works against the gateway itself, but this service's own `RequireScope` check
-will reject it until the token actually carries a `scope` claim including `partelisto:read`/`partelisto:write`
-(which means it needs to come from the `partelisto-mcp` Keycloak client once that exists).
+`tools/list` needs no token. `tools/call` needs an access token minted for the `partelisto-mcp` client
+with `partelisto:read`/`partelisto:write` in its scope — a token from `partelisto-spa` (e.g. copied from
+the SPA's dev tools) will not work, `RequireScope` rejects it. The client has `consentRequired: true`,
+so it won't hand out a token via password grant (no browser to show consent to) unless that's toggled
+off in the Keycloak admin console first — fine for one-off local testing, but flip it back afterward.
