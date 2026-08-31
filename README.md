@@ -102,11 +102,18 @@ whole project — the only thing left unverified is a ChatGPT connection specifi
 
 Live at `https://mcp.partelisto.es` — `k8s/deployment.yaml` applied directly (`kubectl apply -f k8s/`,
 not Helm; see that file's header comment for why), image `ghcr.io/targetgrps/partelisto-mcp`, namespace
-`targetgrps-microservices`. CI (`.github/workflows/build-publish.yml`) builds and pushes on every push to
-`main`; the image running in the cluster right now was pushed manually during initial rollout (org GHCR
-secrets weren't yet granted to this repo, and once they were, two real bugs surfaced only in prod — see
-below — so redeploying was faster done directly). Bump the `image:` tag in `k8s/deployment.yaml` and
-re-apply for future releases.
+`targetgrps-microservices`. CI (`.github/workflows/build-publish.yml`) builds, tests, and pushes on
+every push to `main`. Bump the `image:` tag in `k8s/deployment.yaml` and re-apply for future releases.
+
+CI is self-contained — it does **not** call `targetgrps/reusable-workflows` the way every sibling
+service's `build-publish.yml` does. That repo is private, and this one is deliberately public (see
+"Made public" below); a public repository cannot call a reusable workflow in a private one at all —
+GitHub rejects it at dispatch time ("workflow was not found"), independent of that repo's access-level
+setting. The reusable workflow's other features (npm/nuget client publish, a Mongo image, Slack notify)
+don't apply to this service anyway, so a small inline workflow was the right call, not a workaround.
+Also needed `GH_TOKEN_TARGETGRPS` (not `secrets.GITHUB_TOKEN`) to log in to GHCR — the package was first
+pushed with a personal token during initial rollout, so this repo's own Actions identity was never on
+its "Manage Actions access" list (a GHCR setting with no REST API to fix remotely).
 
 Two bugs found and fixed only by actually deploying, not by local `docker run`/`docker compose`:
 - `dotnet publish --no-build -o /app` was publishing into the same directory the source tree already
