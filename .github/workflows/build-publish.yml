@@ -1,0 +1,22 @@
+name: Build and Publish Partelisto MCP Service
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+jobs:
+  build-and-publish-nuget:
+    uses: targetgrps/reusable-workflows/.github/workflows/microservice-build-and-publish.yml@main
+    with:
+      serviceName: partelisto-mcp
+      hasClient: false
+      hasMongo: false
+      hasTests: true
+    secrets:
+      GH_TOKEN_TARGETGRPS: ${{ secrets.GH_TOKEN_TARGETGRPS }}
+      PAT_USER_READ_PACKAGES: ${{ secrets.PAT_USER_READ_PACKAGES }}
+      PRIVATE_ACTION_APP_ID: ${{ secrets.PRIVATE_ACTION_APP_ID }}
+      PRIVATE_ACTION_APP_PRIVATE_KEY: ${{ secrets.PRIVATE_ACTION_APP_PRIVATE_KEY }}
