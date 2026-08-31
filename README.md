@@ -114,10 +114,23 @@ certificate issuance cluster-wide, not just for this service.
 Verified live over real HTTPS: `/healthz`, `/.well-known/oauth-protected-resource` (correct `https://`
 resource and both scopes listed), and the MCP `initialize` handshake.
 
+## Listed in the official MCP registry
+
+`io.github.TargetGrps/partelisto-mcp` is live and `active` at registry.modelcontextprotocol.io — verify
+with `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=partelisto-mcp"`. Published by
+`.github/workflows/publish-mcp-registry.yml` on every push to `main` that touches `server.json`, via
+GitHub Actions OIDC — no login, no stored token, nobody approves anything by hand. The namespace has to
+match the org's exact casing (`TargetGrps`, not `targetgrps`) or the registry's OIDC check 403s.
+
 ## What's NOT done yet (manual follow-ups)
 
-- **Not registered anywhere an AI client would find it** (no MCP registry listing, no ChatGPT App
-  submission).
+- **Not submitted to the ChatGPT App directory.** Unlike the MCP registry, there's no OIDC/CI path for
+  this — OpenAI's submission flow is a human review process behind a developer-account login: verify the
+  production `/mcp` URL, verify the domain, provide reviewer credentials for the OAuth flow, write test
+  cases, submit for a 5-10 business day review
+  ([submission guidelines](https://developers.openai.com/apps-sdk/app-submission-guidelines)). That
+  needs someone who owns (or will own) the org's OpenAI developer account — logging into or creating one
+  isn't something to automate.
 - **Full OAuth authorization_code+PKCE flow untested end to end** — see the Keycloak section above.
   Everything short of "a real client completes the browser consent screen and calls a tool" has been
   verified, including against a live Keycloak, a live gateway, and now the live deployed server itself.
