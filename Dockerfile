@@ -18,13 +18,20 @@ RUN dotnet build -c "$BUILDCONFIG" --no-restore /p:PackageVersion="$APP_VERSION"
 
 FROM build AS publish
 ARG BUILDCONFIG=Release
-RUN dotnet publish src/TargetGrps.Partelisto.Mcp.Api/TargetGrps.Partelisto.Mcp.Api.csproj -c "$BUILDCONFIG" -o /app --no-build
+# -o must NOT be /app: that's also WORKDIR, which already holds the source tree (src/...) from the
+# COPY above. Publishing --no-build into the same directory that already contains the built project's
+# own source/obj tree silently skips copying Content items (appsettings.json, appsettings.*.json) -
+# a known MSBuild incremental-cache quirk when build and publish share one obj/ directory. Confirmed
+# by direct repro: publishing to a fresh directory copies appsettings.json; publishing to /app does not,
+# and the resulting image throws "Keycloak:Authority is not configured" at startup with no appsettings
+# files present at all. Publishing to a distinct directory sidesteps it entirely.
+RUN dotnet publish src/TargetGrps.Partelisto.Mcp.Api/TargetGrps.Partelisto.Mcp.Api.csproj -c "$BUILDCONFIG" -o /out --no-build
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
 RUN apk add --no-cache icu-libs
 WORKDIR /app
-COPY --from=publish /app .
+COPY --from=publish /out .
 # uid/gid 1000 pinned explicitly: the k8s deployment sets runAsUser/runAsGroup: 1000 (matching the
 # other TargetGrps services' securityContext), so this has to be the same 1000, not whatever Alpine's
 # adduser would pick by default.

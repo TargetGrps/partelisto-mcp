@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: partelisto-mcp
-          image: ghcr.io/targetgrps/partelisto-mcp:1.0.0-39c7bf8
+          image: ghcr.io/targetgrps/partelisto-mcp:1.0.0-fix1
           ports:
             - containerPort: 8080
               name: http
