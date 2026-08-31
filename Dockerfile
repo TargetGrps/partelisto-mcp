@@ -1,0 +1,42 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS restore
+WORKDIR /app
+COPY . .
+# Unlike the other TargetGrps services, this one has no TargetGrps.BuildingBlocks.* dependency (it owns
+# no data — no Mongo, no tenancy middleware), so restore needs no private GitHub package source/token.
+# If a BuildingBlocks package is ever added, mirror the GH_ACCOUNT_TARGETGRPS/GH_TOKEN_TARGETGRPS
+# `dotnet nuget update source github` step from the sibling services' Dockerfiles here.
+RUN find ./ -type f -name "*.csproj" -exec dotnet restore {} \;
+
+FROM restore AS build
+ARG BUILDCONFIG=Release
+ARG FILE_VERSION="1.0.0.0"
+ARG INFORMATIONAL_VERSION="1.0"
+ARG APP_VERSION="1.0.0"
+ARG CI_BUILD=true
+COPY . .
+RUN dotnet build -c "$BUILDCONFIG" --no-restore /p:PackageVersion="$APP_VERSION" /p:Version="$APP_VERSION" /p:FileVersion="$FILE_VERSION" /p:InformationVersion="$INFORMATIONAL_VERSION"
+
+FROM build AS publish
+ARG BUILDCONFIG=Release
+RUN dotnet publish src/TargetGrps.Partelisto.Mcp.Api/TargetGrps.Partelisto.Mcp.Api.csproj -c "$BUILDCONFIG" -o /app --no-build
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
+RUN apk add --no-cache icu-libs
+WORKDIR /app
+COPY --from=publish /app .
+RUN adduser -D buildadmin && chown buildadmin:buildadmin /app /app/*
+USER buildadmin
+EXPOSE 8080
+ARG COMMIT_SHA
+ENV SENTRY_RELEASE=${COMMIT_SHA} REVISION=${COMMIT_SHA}
+ENV ASPNETCORE_URLS=http://*:8080
+ENTRYPOINT ["dotnet", "TargetGrps.Partelisto.Mcp.Api.dll"]
+
+FROM build AS tests
+ARG BUILDCONFIG=Release
+ENV TESTBUILDCONFIG=$BUILDCONFIG
+RUN dotnet tool restore
+ENTRYPOINT dotnet test --collect:"XPlat Code Coverage" -c "$TESTBUILDCONFIG" --no-build --verbosity normal --settings coverlet.runsettings\
+  --logger:"junit;LogFileName=TestResults.{assembly}.{framework}.xml;verbosity=normal"\
+  --logger:"console;verbosity=normal"
