@@ -72,20 +72,31 @@ the token), one adding `api-gateway` (so the same token, forwarded unchanged, is
 gateway; the first mapper alone replaces the audience rather than extending it, which silently broke the
 gateway hop — worth remembering if another audience mapper gets added here later).
 
-Registered redirect URI so far: `https://claude.ai/api/mcp/auth_callback`. Add more (ChatGPT, Claude
-Code's local callback, etc.) as each client actually gets connected — Keycloak needs the exact URI
-before that client's OAuth flow will complete.
+Registered redirect URIs: `https://claude.ai/api/mcp/auth_callback` and
+`https://chatgpt.com/connector_platform_oauth_redirect`. Add more (Claude Code's local callback, etc.)
+as each client actually gets connected — Keycloak needs the exact URI before that client's OAuth flow
+will complete.
 
-Verified with a real e2e-owner token minted against this client (`scope=openid partelisto:read
-partelisto:write`, consent briefly disabled to allow a password-grant test token, then re-enabled):
-- Decoded token carried `aud: partelisto-mcp` and both custom scopes, as expected.
-- This service's own JWT validation + `RequireScope` correctly accepted it (no longer rejected, unlike
-  a `partelisto-spa`-issued token, which correctly still gets rejected — proven separately).
-- Forwarding to the gateway failed once (the audience-replacement bug above), fixed, not re-run after
-  the fix — consent was already back on by then. NOT verified: a scoped token, post-fix, actually
-  reaching backoffice and getting a real answer back. High confidence (the fix is standard Keycloak
-  audience-mapper behavior and the gateway hop is byte-for-byte what the SPA already does successfully),
-  but the last hop is unconfirmed — first real test will be the first real client connecting.
+Two more fixes were needed, found only by testing against a real signed-in Claude.ai session (browser,
+not curl) with a real (non-e2e) Partelisto account:
+- **`fullScopeAllowed` was `false` on the `partelisto-mcp` client** (Keycloak's default for a
+  client created via the Admin API). With it off, the issued token's `realm_access.roles` contained only
+  `offline_access` — none of the user's actual roles — regardless of what the user actually had. Fixed
+  by setting it to `true` (already `true` on `partelisto-spa`; brings this client in line with that).
+- **Missing the `oidc-usermodel-realm-role-mapper` protocol mapper** (name "realm roles", claim name
+  `roles`) that `partelisto-spa` has directly on the client. `TargetGrps.BuildingBlocks.Bootstrapper`'s
+  JWT setup sets `RoleClaimType = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"` and
+  never maps `realm_access.roles` into that claim type itself (confirmed by decompiling the installed
+  NuGet package — its `OnTokenValidated` handler only logs claims) — so `RequireRole(...)` policies like
+  `OwnerAccess` fail for *any* client missing this exact mapper, no matter what roles the user has or
+  what `realm_access` contains. Copied verbatim from `partelisto-spa`'s mapper config onto `partelisto-mcp`.
+
+**Verified end to end with a real signed-in Claude.ai session**, not just curl: added the custom
+connector, completed the full browser OAuth + consent flow (both scopes shown and granted separately,
+confirming the two-scope design renders correctly), had `list_properties` fail twice with the two bugs
+above, fixed both live, reconnected, and got a real answer back from backoffice through the whole chain
+(gateway → backoffice → GraphQL → this service → Claude). This is now the most-verified path in the
+whole project — the only thing left unverified is a ChatGPT connection specifically.
 
 ## Deployed
 
@@ -131,9 +142,9 @@ match the org's exact casing (`TargetGrps`, not `targetgrps`) or the registry's 
   ([submission guidelines](https://developers.openai.com/apps-sdk/app-submission-guidelines)). That
   needs someone who owns (or will own) the org's OpenAI developer account — logging into or creating one
   isn't something to automate.
-- **Full OAuth authorization_code+PKCE flow untested end to end** — see the Keycloak section above.
-  Everything short of "a real client completes the browser consent screen and calls a tool" has been
-  verified, including against a live Keycloak, a live gateway, and now the live deployed server itself.
+- **Not actually connected from ChatGPT** — the redirect URI is registered but nobody has completed
+  ChatGPT's connector-add flow against this server yet, unlike Claude.ai (see the Keycloak section
+  above, verified end to end).
 - Only Claude.ai's and ChatGPT's redirect URIs are registered on the `partelisto-mcp` Keycloak client.
   Add more as other clients (Copilot, etc.) actually get connected.
 
