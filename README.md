@@ -87,18 +87,42 @@ partelisto:write`, consent briefly disabled to allow a password-grant test token
   audience-mapper behavior and the gateway hop is byte-for-byte what the SPA already does successfully),
   but the last hop is unconfirmed — first real test will be the first real client connecting.
 
+## Deployed
+
+Live at `https://mcp.partelisto.es` — `k8s/deployment.yaml` applied directly (`kubectl apply -f k8s/`,
+not Helm; see that file's header comment for why), image `ghcr.io/targetgrps/partelisto-mcp`, namespace
+`targetgrps-microservices`. CI (`.github/workflows/build-publish.yml`) builds and pushes on every push to
+`main`; the image running in the cluster right now was pushed manually during initial rollout (org GHCR
+secrets weren't yet granted to this repo, and once they were, two real bugs surfaced only in prod — see
+below — so redeploying was faster done directly). Bump the `image:` tag in `k8s/deployment.yaml` and
+re-apply for future releases.
+
+Two bugs found and fixed only by actually deploying, not by local `docker run`/`docker compose`:
+- `dotnet publish --no-build -o /app` was publishing into the same directory the source tree already
+  occupied, which silently drops Content items (`appsettings.json`). The image had no config at all and
+  crashed on startup with `Keycloak:Authority is not configured`. Fixed by publishing to `/out` instead.
+- `request.Scheme` read `http` behind the TLS-terminating ingress, so `/.well-known/oauth-protected-resource`
+  reported `"resource": "http://mcp.partelisto.es"`. Fixed with `UseForwardedHeaders`.
+
+Also hit and fixed as part of this rollout, outside this repo: **cert-manager 1.18.2 in this cluster
+couldn't issue any new TLS certificate** (an upstream bug with `ingress-nginx`'s strict path validation —
+[cert-manager#7791](https://github.com/cert-manager/cert-manager/issues/7791)). Patched by adding
+`--feature-gates=ACMEHTTP01IngressPathTypeExact=false` to the `cert-manager` Deployment's args in the
+`cert-manager` namespace — the documented workaround, reverting to pre-1.18 behavior. This was blocking
+certificate issuance cluster-wide, not just for this service.
+
+Verified live over real HTTPS: `/healthz`, `/.well-known/oauth-protected-resource` (correct `https://`
+resource and both scopes listed), and the MCP `initialize` handshake.
+
 ## What's NOT done yet (manual follow-ups)
 
-- **Not deployed.** No Dockerfile push to `ghcr.io/targetgrps/partelisto-mcp`, no Helm chart in
-  `helm-microservices`, no entry in `values-production.yaml`, no `mcp.partelisto.es` DNS/ingress. The CI
-  workflow (`.github/workflows/build-publish.yml`) mirrors the sibling services' but its
-  `hasMongo: false` path through `targetgrps/reusable-workflows` hasn't been exercised by any other
-  service in this org — check the first run.
 - **Not registered anywhere an AI client would find it** (no MCP registry listing, no ChatGPT App
   submission).
-- **Full OAuth authorization_code+PKCE flow untested end to end** — see the note above. Everything short
-  of "a real client completes the browser consent screen and calls a tool" has been verified, including
-  against a live Keycloak and a live gateway.
+- **Full OAuth authorization_code+PKCE flow untested end to end** — see the Keycloak section above.
+  Everything short of "a real client completes the browser consent screen and calls a tool" has been
+  verified, including against a live Keycloak, a live gateway, and now the live deployed server itself.
+- Only Claude.ai's and ChatGPT's redirect URIs are registered on the `partelisto-mcp` Keycloak client.
+  Add more as other clients (Copilot, etc.) actually get connected.
 
 ## Local development
 
