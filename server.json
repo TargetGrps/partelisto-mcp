@@ -3,12 +3,19 @@
   "name": "io.github.TargetGrps/partelisto-mcp",
   "title": "Partelisto",
   "description": "Guest check-in and SES.HOSPEDAJES status for short-term rental hosts. No guest PII exposed.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": {
     "url": "https://github.com/TargetGrps/partelisto-mcp",
     "source": "github"
   },
-  "websiteUrl": "https://partelisto.es",
+  "websiteUrl": "https://partelisto.es/mcp",
+  "icons": [
+    {
+      "src": "https://partelisto.es/logo-512.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
