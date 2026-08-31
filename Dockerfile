@@ -25,7 +25,10 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
 RUN apk add --no-cache icu-libs
 WORKDIR /app
 COPY --from=publish /app .
-RUN adduser -D buildadmin && chown buildadmin:buildadmin /app /app/*
+# uid/gid 1000 pinned explicitly: the k8s deployment sets runAsUser/runAsGroup: 1000 (matching the
+# other TargetGrps services' securityContext), so this has to be the same 1000, not whatever Alpine's
+# adduser would pick by default.
+RUN adduser -D -u 1000 buildadmin && chown buildadmin:buildadmin /app /app/*
 USER buildadmin
 EXPOSE 8080
 ARG COMMIT_SHA
