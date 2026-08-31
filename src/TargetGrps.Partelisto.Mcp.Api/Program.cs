@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using TargetGrps.Partelisto.Mcp.Api.Auth;
 using TargetGrps.Partelisto.Mcp.Api.Tools;
 using TargetGrps.Partelisto.Mcp.Infrastructure;
@@ -40,6 +41,19 @@ builder.Services
     .WithToolsFromAssembly();
 
 WebApplication app = builder.Build();
+
+// The pod only ever receives plain HTTP from the in-cluster nginx ingress, which terminates TLS —
+// without this, request.Scheme reads "http" even for a real https:// call, which made the
+// oauth-protected-resource "resource" field wrong (http://mcp.partelisto.es instead of https://).
+// KnownNetworks/KnownProxies cleared because the only path to this pod is through that ingress
+// (ClusterIP, no other ingress) — there's no untrusted network the header could arrive from instead.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // Populates HttpContext.User from the bearer token when one is present and valid; does not itself
 // reject unauthenticated requests (no [Authorize] / RequireAuthorization here) — tools/list must stay
