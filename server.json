@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.targetgrps/partelisto-mcp",
+  "name": "io.github.TargetGrps/partelisto-mcp",
   "title": "Partelisto",
   "description": "Guest check-in and SES.HOSPEDAJES status for short-term rental hosts. No guest PII exposed.",
   "version": "1.0.0",
