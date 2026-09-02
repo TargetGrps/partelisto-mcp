@@ -1,10 +1,23 @@
 # Partelisto MCP
 
-A remote [MCP](https://modelcontextprotocol.io) server that lets an AI client (Claude, ChatGPT, etc.)
-answer questions about a signed-in host's Partelisto data — arrivals, check-in status, SES.HOSPEDAJES
-submission state, plan usage — and, with a separately granted permission, resend a guest's check-in
-link. It adds no business logic of its own: every tool is a thin wrapper over one query or mutation
-that already exists on the api-gateway, gated exactly the way the web app is.
+SES.HOSPEDAJES and guest check-in for Spanish vacation rentals, exposed to AI agents.
+
+A remote [MCP](https://modelcontextprotocol.io) server that lets Claude, ChatGPT, or any MCP-compatible
+AI agent answer operational questions about a signed-in host's Spanish accommodation — which arrivals
+still have an incomplete guest form, which bookings failed SES.HOSPEDAJES (police registration)
+submission, how close the account is to its plan limit — and, with a separately granted permission,
+resend a guest's check-in link. It adds no business logic of its own: every tool is a thin wrapper over
+one query or mutation that already exists on the api-gateway, gated exactly the way the web app is.
+
+**Tools:** `list_properties` · `list_bookings` · `get_guest_form_status` · `list_ses_statuses` ·
+`get_usage_summary` · `send_guest_checkin_link` (needs the extra `partelisto:write` scope — see the
+[Tools](#tools-v1) table below for what each one wraps).
+
+**Example prompts:** "Which of today's arrivals still have an incomplete guest form?" · "Show me
+bookings where SES.HOSPEDAJES submission failed." · "Resend the check-in link for booking X."
+
+No guest PII (email, phone, passport/DNI, date of birth, nationality, document content) is ever
+selected or returned by any tool — see [Tools (v1)](#tools-v1) below.
 
 ```
 Claude / ChatGPT / Copilot
