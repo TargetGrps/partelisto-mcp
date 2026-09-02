@@ -34,8 +34,9 @@ builder.Services
             "Guest check-in and SES.HOSPEDAJES (police registration) compliance for the signed-in host's " +
             "short-term rental properties. Tools return status/completeness only — never guest documents, " +
             "email, phone, or passport/DNI numbers. Read tools need the partelisto:read grant; " +
-            "send_guest_checkin_link additionally needs partelisto:write, sends a real email, and should " +
-            "be confirmed with the host before calling it.";
+            "send_guest_checkin_link and create_booking additionally need partelisto:write, have a real " +
+            "side effect (an email sent, or a new booking), and should be confirmed with the host before " +
+            "calling them. Start with get_attention_required for a daily overview of what needs action.";
     })
     .WithHttpTransport()
     .WithToolsFromAssembly();
