@@ -55,3 +55,29 @@ public sealed record SendGuestLinkResult(
     string Recipient,
     string? Error,
     string ExpiresAt);
+
+public sealed record TemplateSummary(
+    string Id,
+    bool IsArchived);
+
+public sealed record BookingCreated(
+    string Id,
+    string PropertyId,
+    string TemplateId,
+    string CheckIn,
+    string CheckOut,
+    string Status);
+
+/// <param name="Reason">"guest_form_incomplete" or "ses_submission_failed".</param>
+/// <param name="Detail">Short, human-readable explanation of why this item was flagged.</param>
+public sealed record AttentionItem(
+    string BookingId,
+    string PropertyId,
+    string CheckIn,
+    string CheckOut,
+    string Reason,
+    string Detail);
+
+public sealed record AttentionReport(
+    IReadOnlyList<AttentionItem> Items,
+    int BookingsScanned);

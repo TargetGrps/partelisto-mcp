@@ -10,11 +10,13 @@ resend a guest's check-in link. It adds no business logic of its own: every tool
 one query or mutation that already exists on the api-gateway, gated exactly the way the web app is.
 
 **Tools:** `list_properties` · `list_bookings` · `get_guest_form_status` · `list_ses_statuses` ·
-`get_usage_summary` · `send_guest_checkin_link` (needs the extra `partelisto:write` scope — see the
-[Tools](#tools-v1) table below for what each one wraps).
+`get_usage_summary` · `get_attention_required` · `send_guest_checkin_link` · `create_booking` (the last
+two need the extra `partelisto:write` scope — see the [Tools](#tools-v1) table below for what each one
+wraps).
 
-**Example prompts:** "Which of today's arrivals still have an incomplete guest form?" · "Show me
-bookings where SES.HOSPEDAJES submission failed." · "Resend the check-in link for booking X."
+**Example prompts:** "What needs my attention today?" · "Which of today's arrivals still have an
+incomplete guest form?" · "Show me bookings where SES.HOSPEDAJES submission failed." · "Create a booking
+for Casa Sol, 12–15 September, guest Ana García." · "Resend the check-in link for booking X."
 
 No guest PII (email, phone, passport/DNI, date of birth, nationality, document content) is ever
 selected or returned by any tool — see [Tools (v1)](#tools-v1) below.
@@ -46,7 +48,9 @@ reasons the template exists, but skips Mongo/multitenancy bootstrap because ther
 | `get_guest_form_status` | `partelisto:read` | `submissionStatus` |
 | `list_ses_statuses` | `partelisto:read` | `sesSubmissionStatuses` |
 | `get_usage_summary` | `partelisto:read` | `partelistoUsageInfo` |
+| `get_attention_required` | `partelisto:read` | `bookingsPage` + `sesSubmissionStatuses`, composed client-side — no new query. Scans the 50 most recent bookings; imminent/current stays with an incomplete guest form, plus any failed SES submission. |
 | `send_guest_checkin_link` | `partelisto:write` | `sendGuestLink` mutation — emails the guest, rotates their link |
+| `create_booking` | `partelisto:write` | `createBooking` mutation. Auto-resolves `templateId` via `templates(propertyId)` when the property has exactly one active template; otherwise asks the caller to pick one. Does not send the check-in link — call `send_guest_checkin_link` separately for that. |
 
 None of these ever select or return guest email, phone, passport/DNI, date of birth, nationality, or
 document content — see `GatewayQueries` (what's selected) and `ResponseShaper` (what's mapped into the

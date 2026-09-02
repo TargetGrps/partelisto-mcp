@@ -97,6 +97,30 @@ public static class ResponseShaper
             payload.GetProperty("expiresAt").GetString()!);
     }
 
+    public static IReadOnlyList<TemplateSummary> ToTemplates(JsonElement data)
+    {
+        var result = new List<TemplateSummary>();
+        foreach (JsonElement t in data.GetProperty("templates").EnumerateArray())
+        {
+            result.Add(new TemplateSummary(
+                t.GetProperty("id").GetString()!,
+                GetStringOrNull(t, "archivedAt") is not null));
+        }
+        return result;
+    }
+
+    public static BookingCreated ToBookingCreated(JsonElement data)
+    {
+        JsonElement booking = data.GetProperty("createBooking").GetProperty("booking");
+        return new BookingCreated(
+            booking.GetProperty("id").GetString()!,
+            booking.GetProperty("propertyId").GetString()!,
+            booking.GetProperty("templateId").GetString()!,
+            booking.GetProperty("checkIn").GetString()!,
+            booking.GetProperty("checkOut").GetString()!,
+            booking.GetProperty("status").GetString()!);
+    }
+
     private static string? GetStringOrNull(JsonElement element, string propertyName) =>
         element.TryGetProperty(propertyName, out JsonElement value) && value.ValueKind != JsonValueKind.Null
             ? value.GetString()

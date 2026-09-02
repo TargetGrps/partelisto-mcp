@@ -144,5 +144,45 @@ public class ResponseShaperTests
         ResponseShaper.ToSendGuestLinkResult(failure).Error.Should().Be("Guest email address is not valid.");
     }
 
+    [Fact]
+    public void ToTemplates_maps_id_and_archived_flag()
+    {
+        JsonElement data = Parse("""
+            {
+              "templates": [
+                { "id": "t1", "archivedAt": null },
+                { "id": "t2", "archivedAt": "2026-01-01T00:00:00Z" }
+              ]
+            }
+            """);
+
+        IReadOnlyList<TemplateSummary> result = ResponseShaper.ToTemplates(data);
+
+        result.Should().BeEquivalentTo(
+        [
+            new TemplateSummary("t1", false),
+            new TemplateSummary("t2", true)
+        ]);
+    }
+
+    [Fact]
+    public void ToBookingCreated_unwraps_the_mutation_payload()
+    {
+        JsonElement data = Parse("""
+            {
+              "createBooking": {
+                "booking": {
+                  "id": "b1", "propertyId": "p1", "templateId": "t1",
+                  "checkIn": "2026-09-12", "checkOut": "2026-09-15", "status": "Draft"
+                }
+              }
+            }
+            """);
+
+        BookingCreated result = ResponseShaper.ToBookingCreated(data);
+
+        result.Should().Be(new BookingCreated("b1", "p1", "t1", "2026-09-12", "2026-09-15", "Draft"));
+    }
+
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement.Clone();
 }

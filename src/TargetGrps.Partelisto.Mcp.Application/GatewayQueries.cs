@@ -89,4 +89,30 @@ public static class GatewayQueries
           }
         }
         """;
+
+    // Used only to auto-pick a template when create_booking is called without one — id and archived
+    // state are all that's needed to decide "exactly one active template" vs. "ask the caller".
+    public const string ListTemplatesForProperty = """
+        query McpListTemplates($propertyId: String!, $includeArchived: Boolean) {
+          templates(propertyId: $propertyId, includeArchived: $includeArchived) {
+            id
+            archivedAt
+          }
+        }
+        """;
+
+    public const string CreateBooking = """
+        mutation McpCreateBooking($input: CreateBookingInput!) {
+          createBooking(input: $input) {
+            booking {
+              id
+              propertyId
+              templateId
+              checkIn
+              checkOut
+              status
+            }
+          }
+        }
+        """;
 }

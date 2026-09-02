@@ -101,6 +101,82 @@ public sealed class PartelistoTools(IPartelistoGatewayClient gateway, IHttpConte
         return ResponseShaper.ToSendGuestLinkResult(data);
     }
 
+    [McpServerTool(Name = "create_booking", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = true)]
+    [Description("Creates a new booking (a check-in workflow) for one of the host's properties. Requires the write permission granted separately during sign-in. Ask the host to confirm the property and dates before calling this. Does not email the guest — call send_guest_checkin_link afterwards if a link should go out now.")]
+    public async Task<BookingCreated> CreateBooking(
+        [Description("The property id, from list_properties.")] string propertyId,
+        [Description("Check-in date, yyyy-MM-dd.")] string checkIn,
+        [Description("Check-out date, yyyy-MM-dd.")] string checkOut,
+        [Description("Check-in template id. Omit if the property has exactly one active (non-archived) template — it is picked automatically; otherwise this is required.")] string? templateId = null,
+        [Description("Guest name, optional.")] string? guestName = null,
+        [Description("Guest email, optional.")] string? guestEmail = null,
+        [Description("Guest phone, optional.")] string? guestPhone = null,
+        CancellationToken ct = default)
+    {
+        string bearerToken = RequireScope(PartelistoScopes.Write);
+
+        string resolvedTemplateId = string.IsNullOrWhiteSpace(templateId)
+            ? await ResolveSingleActiveTemplateAsync(propertyId, bearerToken, ct)
+            : templateId;
+
+        var input = new { propertyId, templateId = resolvedTemplateId, checkIn, checkOut, guestName, guestEmail, guestPhone };
+        JsonElement data = await gateway.ExecuteAsync(GatewayQueries.CreateBooking, new { input }, bearerToken, ct);
+        return ResponseShaper.ToBookingCreated(data);
+    }
+
+    [McpServerTool(Name = "get_attention_required", ReadOnly = true, Idempotent = true, OpenWorld = false)]
+    [Description("Scans the signed-in host's most recent bookings (up to 50) and returns only what needs action right now: stays that are imminent or under way where the guest has not completed check-in, and bookings whose SES.HOSPEDAJES submission failed. Empty list means nothing needs attention within the window. No guest PII.")]
+    public async Task<AttentionReport> GetAttentionRequired(
+        [Description("How many days ahead counts as \"imminent\" (a negative gap means the stay already started). Defaults to 3.")] int arrivalWindowDays = 3,
+        CancellationToken ct = default)
+    {
+        string bearerToken = RequireScope(PartelistoScopes.Read);
+        arrivalWindowDays = Math.Clamp(arrivalWindowDays, 0, 30);
+
+        JsonElement bookingsData = await gateway.ExecuteAsync(GatewayQueries.ListBookings, new { skip = 0, take = 50 }, bearerToken, ct);
+        BookingsPage page = ResponseShaper.ToBookingsPage(bookingsData);
+
+        IReadOnlyList<SesStatusEntry> sesStatuses = [];
+        if (page.Items.Count > 0)
+        {
+            string[] bookingIds = page.Items.Select(b => b.Id).ToArray();
+            JsonElement sesData = await gateway.ExecuteAsync(GatewayQueries.ListSesStatuses, new { bookingIds }, bearerToken, ct);
+            sesStatuses = ResponseShaper.ToSesStatuses(sesData);
+        }
+
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        IReadOnlyList<AttentionItem> items = AttentionAnalyzer.Analyze(page.Items, sesStatuses, today, arrivalWindowDays);
+        return new AttentionReport(items, page.Items.Count);
+    }
+
+    /// <summary>
+    /// create_booking's TemplateId is required by the gateway mutation but an AI caller shouldn't need
+    /// to know about templates for the common case of one property, one active template. Ambiguity (zero
+    /// or several active templates) is refused rather than guessed, with the ids listed so the caller
+    /// can retry with one.
+    /// </summary>
+    private async Task<string> ResolveSingleActiveTemplateAsync(string propertyId, string bearerToken, CancellationToken ct)
+    {
+        JsonElement data = await gateway.ExecuteAsync(
+            GatewayQueries.ListTemplatesForProperty, new { propertyId, includeArchived = false }, bearerToken, ct);
+        IReadOnlyList<TemplateSummary> templates = ResponseShaper.ToTemplates(data);
+
+        if (templates.Count == 0)
+        {
+            throw new McpException(
+                "This property has no active check-in template yet. Create one in the Partelisto app first, " +
+                "or pass templateId if you already know it.");
+        }
+        if (templates.Count > 1)
+        {
+            throw new McpException(
+                $"This property has {templates.Count} active check-in templates ({string.Join(", ", templates.Select(t => t.Id))}). " +
+                "Pass templateId to pick one.");
+        }
+
+        return templates[0].Id;
+    }
+
     /// <summary>
     /// Confirms the caller presented a token, that the JwtBearer handler validated it (signature,
     /// issuer, expiry — see Program.cs), and that its "scope" claim grants <paramref name="requiredScope"/>.
