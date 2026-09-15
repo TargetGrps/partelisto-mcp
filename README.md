@@ -177,6 +177,7 @@ match the org's exact casing (`TargetGrps`, not `targetgrps`) or the registry's 
 ```bash
 dotnet build                       # builds src/*.sln
 dotnet test                        # 8 unit tests, ResponseShaper + GatewayQueries PII guard
+dotnet run --project src/TargetGrps.Partelisto.Mcp.Api -- --stdio   # MCP over stdin/stdout (Glama introspection)
 docker compose build targetgrps-partelisto-mcp
 docker compose up -d
 curl http://localhost:5207/healthz
