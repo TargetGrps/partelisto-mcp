@@ -2,6 +2,16 @@
 
 SES.HOSPEDAJES and guest check-in for Spanish vacation rentals, exposed to AI agents.
 
+This is the AI-agent interface of [Partelisto](https://partelisto.es), the guest check-in and
+SES.HOSPEDAJES filing service for holiday-rental hosts in Spain.
+
+- **Connect it:** step-by-step setup for Claude and ChatGPT is on [partelisto.es/mcp](https://partelisto.es/mcp),
+  and the Spanish walkthrough is in the guide
+  [Conectar Partelisto con Claude o ChatGPT](https://partelisto.es/guias/conectar-partelisto-ia-claude-chatgpt).
+- **What it's for:** in Spain every guest's details must reach the police within 24 hours of arrival
+  (RD 933/2021). The background is in
+  [Parte de entrada de viajeros en España](https://partelisto.es/guias/parte-de-entrada-huespedes-espana).
+
 A remote [MCP](https://modelcontextprotocol.io) server that lets Claude, ChatGPT, or any MCP-compatible
 AI agent answer operational questions about a signed-in host's Spanish accommodation — which arrivals
 still have an incomplete guest form, which bookings failed SES.HOSPEDAJES (police registration)
